@@ -16,9 +16,42 @@
   <main>
     <div class="date-row">
       <h1 class="page-heading">All transactions</h1>
+      <div class="toolbar-actions">
+        <a class="secondary-link-btn" id="export-csv-link" href="/api/export/csv">⬇ CSV</a>
+        <a class="secondary-link-btn" id="export-backup-link" href="/api/backup">⬇ Backup</a>
+        <button type="button" class="secondary-link-btn" id="restore-btn">⬆ Restore</button>
+        <input type="file" id="restore-file-input" accept="application/json" style="display:none;" />
+      </div>
     </div>
 
     <div id="error-banner" class="error-banner"></div>
+
+    <div class="card fade-in filter-card">
+      <div class="filter-row">
+        <input type="text" id="filter-q" placeholder="Search description or category…" class="filter-search" />
+        <input type="text" id="filter-category" list="category-suggestions" placeholder="Category" />
+        <datalist id="category-suggestions"></datalist>
+      </div>
+      <div class="filter-row">
+        <div class="field">
+          <label for="filter-date-from">From</label>
+          <input type="date" id="filter-date-from" />
+        </div>
+        <div class="field">
+          <label for="filter-date-to">To</label>
+          <input type="date" id="filter-date-to" />
+        </div>
+        <div class="field">
+          <label for="filter-min">Min $</label>
+          <input type="number" id="filter-min" step="0.01" min="0" />
+        </div>
+        <div class="field">
+          <label for="filter-max">Max $</label>
+          <input type="number" id="filter-max" step="0.01" min="0" />
+        </div>
+        <button type="button" class="secondary" id="filter-clear-btn">Clear</button>
+      </div>
+    </div>
 
     <div class="card fade-in" style="padding:0;">
       <div class="table-wrap">
@@ -37,7 +70,34 @@
       </div>
       <div class="empty-state" id="txn-empty" style="display:none;">
         <div class="empty-icon">🧾</div>
-        <div>No transactions recorded yet. Head to <a href="/">Today</a> to add one.</div>
+        <div>No transactions match your filters.</div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="edit-modal-backdrop" style="display:none;">
+      <div class="card modal-card">
+        <div class="section-title">Edit expense</div>
+        <form id="edit-form" class="inline-form">
+          <input type="hidden" id="edit-expense-id" />
+          <div class="field">
+            <label for="edit-desc">Description</label>
+            <input type="text" id="edit-desc" maxlength="120" />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="edit-amount">Amount</label>
+              <input type="number" id="edit-amount" step="0.01" min="0.01" required />
+            </div>
+            <div class="field">
+              <label for="edit-category">Category</label>
+              <input type="text" id="edit-category" list="category-suggestions" maxlength="40" autocomplete="off" />
+            </div>
+          </div>
+          <div class="field-row">
+            <button type="button" class="secondary" id="edit-cancel-btn" style="flex:1;">Cancel</button>
+            <button type="submit" class="primary" style="flex:1;">Save changes</button>
+          </div>
+        </form>
       </div>
     </div>
   </main>

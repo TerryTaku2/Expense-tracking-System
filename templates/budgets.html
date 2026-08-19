@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budgets - Expense Tracker</title>
+  {% include "_pwa_head.html" %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  {% include "_topbar.html" %}
+
+  <main>
+    <div class="date-row">
+      <h1 class="page-heading">Budgets & recurring</h1>
+    </div>
+
+    <div id="error-banner" class="error-banner"></div>
+
+    <div class="grid-top">
+      <div class="card fade-in">
+        <div class="section-title">Set a budget</div>
+        <form id="budget-form" class="inline-form">
+          <div class="field">
+            <label for="budget-category">Category</label>
+            <input type="text" id="budget-category" list="category-suggestions" placeholder="e.g. Food" maxlength="40" required />
+            <datalist id="category-suggestions"></datalist>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="budget-amount">Cap amount</label>
+              <input type="number" id="budget-amount" step="0.01" min="0.01" placeholder="0.00" required />
+            </div>
+            <div class="field">
+              <label for="budget-period">Period</label>
+              <select id="budget-period">
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="primary">Save budget</button>
+        </form>
+      </div>
+
+      <div class="card fade-in">
+        <div class="section-title">Add a recurring expense</div>
+        <form id="recurring-form" class="inline-form">
+          <div class="field">
+            <label for="recurring-desc">Description</label>
+            <input type="text" id="recurring-desc" placeholder="e.g. Netflix" maxlength="120" required />
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="recurring-amount">Amount</label>
+              <input type="number" id="recurring-amount" step="0.01" min="0.01" placeholder="0.00" required />
+            </div>
+            <div class="field">
+              <label for="recurring-category">Category</label>
+              <input type="text" id="recurring-category" list="category-suggestions" placeholder="e.g. Bills" maxlength="40" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="recurring-frequency">Repeats</label>
+              <select id="recurring-frequency">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly" selected>Monthly</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="recurring-start">Starting</label>
+              <input type="date" id="recurring-start" />
+            </div>
+          </div>
+          <button type="submit" class="primary">Add recurring item</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">Budget progress</div>
+      <div id="budgets-list" class="budgets-list"></div>
+      <div class="empty-state" id="budgets-empty" style="display:none;">
+        <div class="empty-icon">🎯</div>
+        <div>No budgets set yet — add one above to start tracking a category cap.</div>
+      </div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">Recurring items</div>
+      <div id="recurring-list" class="recurring-list"></div>
+      <div class="empty-state" id="recurring-empty" style="display:none;">
+        <div class="empty-icon">🔁</div>
+        <div>No recurring expenses set up yet.</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/budgets.js') }}"></script>
+</body>
+</html>

@@ -23,6 +23,23 @@ const breakdownWrap = document.getElementById("breakdown-wrap");
 const breakdownBar = document.getElementById("breakdown-bar");
 const breakdownLegend = document.getElementById("breakdown-legend");
 
+const entryTypeOptions = document.getElementById("entry-type-options");
+const expenseCategoryField = document.getElementById("expense-category-field");
+const expenseReceiptField = document.getElementById("expense-receipt-field");
+const expenseReceiptInput = document.getElementById("expense-receipt");
+const entrySubmitBtn = document.getElementById("entry-submit-btn");
+
+const editModalBackdrop = document.getElementById("edit-modal-backdrop");
+const editForm = document.getElementById("edit-form");
+const editExpenseId = document.getElementById("edit-expense-id");
+const editDesc = document.getElementById("edit-desc");
+const editAmount = document.getElementById("edit-amount");
+const editCategory = document.getElementById("edit-category");
+const editCancelBtn = document.getElementById("edit-cancel-btn");
+
+let entryType = "expense";
+let currentExpenses = [];
+
 const setupOptions = document.getElementById("setup-options");
 const newBalanceField = document.getElementById("new-balance-field");
 const carryPreview = document.getElementById("carry-preview");
@@ -184,14 +201,14 @@ function renderDay(day) {
 
   statStartingEl.textContent = formatMoney(day.starting_balance);
   statSpentEl.textContent = formatMoney(day.total_spent);
-  statCountEl.textContent = day.expenses.length;
 
-  const remainingFraction = day.starting_balance > 0 ? Math.max(0, Math.min(1, balance / day.starting_balance)) : 0;
+  const startingPlusIncome = day.starting_balance + day.total_income;
+  const remainingFraction = startingPlusIncome > 0 ? Math.max(0, Math.min(1, balance / startingPlusIncome)) : 0;
   const offset = RING_CIRCUMFERENCE * (1 - remainingFraction);
   ringProgressEl.style.strokeDashoffset = `${offset}`;
   ringProgressEl.classList.remove("ring-warning", "ring-danger");
 
-  const pctSpent = day.starting_balance > 0 ? Math.min(100, (day.total_spent / day.starting_balance) * 100) : 100;
+  const pctSpent = startingPlusIncome > 0 ? Math.min(100, (day.total_spent / startingPlusIncome) * 100) : 100;
   if (balance < 0) {
     ringProgressEl.classList.add("ring-danger");
     balanceSubEl.textContent = `You've gone over budget by ${formatMoney(Math.abs(balance))}`;
@@ -202,7 +219,8 @@ function renderDay(day) {
     balanceSubEl.textContent = `${pctSpent.toFixed(0)}% of starting balance spent`;
   }
 
-  renderExpenses(day.expenses);
+  currentExpenses = day.expenses;
+  renderActivity(day.expenses, day.income);
   renderBreakdown(day.expenses, day.total_spent);
 }
 
@@ -242,29 +260,66 @@ function renderBreakdown(expenses, totalSpent) {
     .join("");
 }
 
-function renderExpenses(expenses) {
-  if (!expenses.length) {
+function formatTime(createdAt) {
+  return new Date(createdAt.replace(" ", "T")).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function renderActivity(expenses, income) {
+  const combined = [
+    ...expenses.map((e) => ({ ...e, activityType: "expense" })),
+    ...income.map((i) => ({ ...i, activityType: "income" })),
+  ].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : b.id - a.id));
+
+  statCountEl.textContent = combined.length;
+
+  if (!combined.length) {
     expenseList.innerHTML = "";
     emptyState.style.display = "block";
     return;
   }
   emptyState.style.display = "none";
-  expenseList.innerHTML = expenses
-    .map((e, i) => {
-      const time = new Date(e.created_at.replace(" ", "T")).toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      });
-      const color = colorForCategory(e.category);
+
+  expenseList.innerHTML = combined
+    .map((item, i) => {
+      const time = formatTime(item.created_at);
+      const delay = `style="animation-delay:${Math.min(i, 8) * 30}ms"`;
+
+      if (item.activityType === "income") {
+        return `
+          <li class="expense-item" ${delay}>
+            <span class="category-dot" style="background:var(--success)"></span>
+            <div class="expense-info">
+              <div class="expense-desc">${escapeHtml(item.description)}</div>
+              <div class="expense-meta">Income · ${time}</div>
+            </div>
+            <div class="expense-amount income">+${formatMoney(item.amount)}</div>
+            <div class="row-actions">
+              <button class="delete-btn" data-id="${item.id}" data-type="income" title="Delete">✕</button>
+            </div>
+          </li>
+        `;
+      }
+
+      const color = colorForCategory(item.category);
+      const receiptLink = item.receipt_filename
+        ? `<a class="receipt-link" href="/receipts/${encodeURIComponent(item.receipt_filename)}" target="_blank" rel="noopener" title="View receipt">📎</a>`
+        : "";
       return `
-        <li class="expense-item" style="animation-delay:${Math.min(i, 8) * 30}ms">
+        <li class="expense-item" ${delay}>
           <span class="category-dot" style="background:${color}"></span>
           <div class="expense-info">
-            <div class="expense-desc">${escapeHtml(e.description)}</div>
-            <div class="expense-meta">${escapeHtml(e.category)} · ${time}</div>
+            <div class="expense-desc">${escapeHtml(item.description)}</div>
+            <div class="expense-meta">${escapeHtml(item.category)} · ${time}</div>
           </div>
-          <div class="expense-amount">-${formatMoney(e.amount)}</div>
-          <button class="delete-btn" data-id="${e.id}" title="Delete">✕</button>
+          ${receiptLink}
+          <div class="expense-amount">-${formatMoney(item.amount)}</div>
+          <div class="row-actions">
+            <button class="edit-btn" data-id="${item.id}" title="Edit">✎</button>
+            <button class="delete-btn" data-id="${item.id}" data-type="expense" title="Delete">✕</button>
+          </div>
         </li>
       `;
     })
@@ -338,37 +393,144 @@ editBalanceBtn.addEventListener("click", () => {
     .catch((err) => showError(err.message));
 });
 
+entryTypeOptions.addEventListener("click", (e) => {
+  const btn = e.target.closest(".setup-option");
+  if (!btn) return;
+  entryType = btn.dataset.type;
+  entryTypeOptions.querySelectorAll(".setup-option").forEach((b) => {
+    b.classList.toggle("active", b.dataset.type === entryType);
+  });
+  const isExpense = entryType === "expense";
+  expenseCategoryField.style.display = isExpense ? "flex" : "none";
+  expenseReceiptField.style.display = isExpense ? "flex" : "none";
+  entrySubmitBtn.textContent = isExpense ? "Add expense" : "Add income";
+});
+
 expenseForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await apiCall("/api/expenses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: currentDate(),
-        description: expenseDesc.value,
-        amount: expenseAmount.value,
-        category: expenseCategory.value,
-      }),
-    });
+    if (entryType === "income") {
+      await apiCall("/api/income", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: currentDate(),
+          description: expenseDesc.value,
+          amount: expenseAmount.value,
+        }),
+      });
+    } else {
+      const result = await apiCall("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: currentDate(),
+          description: expenseDesc.value,
+          amount: expenseAmount.value,
+          category: expenseCategory.value,
+        }),
+      });
+
+      const file = expenseReceiptInput.files[0];
+      if (file) {
+        const formData = new FormData();
+        formData.append("receipt", file);
+        try {
+          await apiCall(`/api/expenses/${result.new_expense_id}/receipt`, { method: "POST", body: formData });
+        } catch (err) {
+          showError(`Expense saved, but receipt upload failed: ${err.message}`);
+        }
+      }
+    }
+
     expenseDesc.value = "";
     expenseAmount.value = "";
     expenseCategory.value = "";
+    expenseReceiptInput.value = "";
     expenseDesc.focus();
     await Promise.all([loadDay(currentDate()), loadCategories()]);
-    showToast(ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)]);
+    if (entryType === "income") {
+      showToast("Income logged! 💰", { type: "success" });
+    } else {
+      showToast(ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)]);
+    }
     loadStreak({ celebrateOnIncrease: true });
   } catch (err) {
     showError(err.message);
   }
 });
 
-expenseList.addEventListener("click", async (e) => {
-  const btn = e.target.closest(".delete-btn");
-  if (!btn) return;
+function openEditModal(expenseId) {
+  const expense = currentExpenses.find((x) => x.id === expenseId);
+  if (!expense) return;
+  editExpenseId.value = expense.id;
+  editDesc.value = expense.description;
+  editAmount.value = expense.amount;
+  editCategory.value = expense.category;
+  editModalBackdrop.style.display = "flex";
+}
+
+function closeEditModal() {
+  editModalBackdrop.style.display = "none";
+}
+
+editCancelBtn.addEventListener("click", closeEditModal);
+editModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === editModalBackdrop) closeEditModal();
+});
+
+editForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
   try {
-    await apiCall(`/api/expenses/${btn.dataset.id}`, { method: "DELETE" });
-    await loadDay(currentDate());
+    await apiCall(`/api/expenses/${editExpenseId.value}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: editDesc.value,
+        amount: editAmount.value,
+        category: editCategory.value,
+      }),
+    });
+    closeEditModal();
+    await Promise.all([loadDay(currentDate()), loadCategories()]);
+    showToast("Expense updated");
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+expenseList.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest(".edit-btn");
+  if (editBtn) {
+    openEditModal(Number(editBtn.dataset.id));
+    return;
+  }
+
+  const deleteBtn = e.target.closest(".delete-btn");
+  if (!deleteBtn) return;
+
+  const { id, type } = deleteBtn.dataset;
+  try {
+    if (type === "income") {
+      await apiCall(`/api/income/${id}`, { method: "DELETE" });
+      await loadDay(currentDate());
+      showToast("Income removed");
+    } else {
+      await apiCall(`/api/expenses/${id}`, { method: "DELETE" });
+      await loadDay(currentDate());
+      showToast("Expense deleted", {
+        actionLabel: "Undo",
+        onAction: async () => {
+          try {
+            await apiCall(`/api/expenses/${id}/restore`, { method: "POST" });
+            await loadDay(currentDate());
+            showToast("Restored");
+          } catch (err) {
+            showError(err.message);
+          }
+        },
+      });
+    }
     loadStreak({ celebrateOnIncrease: true });
   } catch (err) {
     showError(err.message);

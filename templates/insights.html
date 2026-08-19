@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Insights - Expense Tracker</title>
+  {% include "_pwa_head.html" %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  {% include "_topbar.html" %}
+
+  <main>
+    <div class="date-row">
+      <h1 class="page-heading">Insights</h1>
+    </div>
+
+    <div id="error-banner" class="error-banner"></div>
+
+    <div class="card fade-in">
+      <div class="setup-options" id="summary-period-options" style="max-width:220px; margin:0 0 18px;">
+        <button type="button" class="setup-option active" data-period="week">This week</button>
+        <button type="button" class="setup-option" data-period="month">This month</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="stat">
+          <div class="stat-value" id="summary-spent">$0.00</div>
+          <div class="stat-label">Spent</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="summary-income">$0.00</div>
+          <div class="stat-label">Income</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="summary-avg">$0.00</div>
+          <div class="stat-label">Avg / day tracked</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="summary-top">—</div>
+          <div class="stat-label">Top category</div>
+        </div>
+      </div>
+      <div class="summary-comparison" id="summary-comparison"></div>
+    </div>
+
+    <div class="card fade-in">
+      <div class="section-title">Spending over time</div>
+      <div id="trend-chart-wrap" class="trend-chart-wrap"></div>
+      <div class="empty-state" id="trend-empty" style="display:none;">
+        <div class="empty-icon">📈</div>
+        <div>Not enough data yet — track a few more days to see a trend.</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/insights.js') }}"></script>
+</body>
+</html>

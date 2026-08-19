@@ -2,6 +2,28 @@ const txnBody = document.getElementById("txn-body");
 const txnEmpty = document.getElementById("txn-empty");
 const errorBanner = document.getElementById("error-banner");
 
+const filterQ = document.getElementById("filter-q");
+const filterCategory = document.getElementById("filter-category");
+const filterDateFrom = document.getElementById("filter-date-from");
+const filterDateTo = document.getElementById("filter-date-to");
+const filterMin = document.getElementById("filter-min");
+const filterMax = document.getElementById("filter-max");
+const filterClearBtn = document.getElementById("filter-clear-btn");
+
+const editModalBackdrop = document.getElementById("edit-modal-backdrop");
+const editForm = document.getElementById("edit-form");
+const editExpenseId = document.getElementById("edit-expense-id");
+const editDesc = document.getElementById("edit-desc");
+const editAmount = document.getElementById("edit-amount");
+const editCategory = document.getElementById("edit-category");
+const editCancelBtn = document.getElementById("edit-cancel-btn");
+
+const restoreBtn = document.getElementById("restore-btn");
+const restoreFileInput = document.getElementById("restore-file-input");
+
+let currentTransactions = [];
+let filterDebounce = null;
+
 function formatMoney(value) {
   return `$${Number(value).toFixed(2)}`;
 }
@@ -22,9 +44,28 @@ function showError(message) {
   errorBanner.classList.add("visible");
 }
 
+async function loadCategoriesForFilter() {
+  const res = await fetch("/api/categories");
+  const categories = await res.json();
+  document.getElementById("category-suggestions").innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+}
+
+function buildQuery() {
+  const params = new URLSearchParams();
+  if (filterQ.value.trim()) params.set("q", filterQ.value.trim());
+  if (filterCategory.value.trim()) params.set("category", filterCategory.value.trim());
+  if (filterDateFrom.value) params.set("date_from", filterDateFrom.value);
+  if (filterDateTo.value) params.set("date_to", filterDateTo.value);
+  if (filterMin.value) params.set("min_amount", filterMin.value);
+  if (filterMax.value) params.set("max_amount", filterMax.value);
+  return params.toString();
+}
+
 async function loadTransactions() {
-  const res = await fetch("/api/transactions");
+  const query = buildQuery();
+  const res = await fetch(`/api/transactions${query ? `?${query}` : ""}`);
   const transactions = await res.json();
+  currentTransactions = transactions;
 
   if (!transactions.length) {
     txnEmpty.style.display = "block";
@@ -36,34 +77,151 @@ async function loadTransactions() {
   txnBody.innerHTML = transactions
     .map((t) => {
       const color = colorForCategory(t.category);
+      const receiptLink = t.receipt_filename
+        ? ` <a class="receipt-link" href="/receipts/${encodeURIComponent(t.receipt_filename)}" target="_blank" rel="noopener" title="View receipt">📎</a>`
+        : "";
       return `
         <tr data-id="${t.id}">
           <td>${formatDate(t.date)}</td>
           <td><span class="category-pill" style="background:${color}22; color:${color};">
             <span class="category-dot" style="background:${color};"></span>${escapeHtml(t.category)}
           </span></td>
-          <td>${escapeHtml(t.description)}</td>
+          <td>${escapeHtml(t.description)}${receiptLink}</td>
           <td class="txn-amount-col">-${formatMoney(t.amount)}</td>
-          <td><button class="delete-btn" data-id="${t.id}" title="Delete">✕</button></td>
+          <td>
+            <div class="row-actions" style="justify-content:flex-end;">
+              <button class="edit-btn" data-id="${t.id}" title="Edit">✎</button>
+              <button class="delete-btn" data-id="${t.id}" title="Delete">✕</button>
+            </div>
+          </td>
         </tr>
       `;
     })
     .join("");
 }
 
-txnBody.addEventListener("click", async (e) => {
-  const btn = e.target.closest(".delete-btn");
-  if (!btn) return;
+[filterCategory, filterDateFrom, filterDateTo, filterMin, filterMax].forEach((el) => {
+  el.addEventListener("change", loadTransactions);
+});
+filterQ.addEventListener("input", () => {
+  clearTimeout(filterDebounce);
+  filterDebounce = setTimeout(loadTransactions, 300);
+});
+filterClearBtn.addEventListener("click", () => {
+  filterQ.value = "";
+  filterCategory.value = "";
+  filterDateFrom.value = "";
+  filterDateTo.value = "";
+  filterMin.value = "";
+  filterMax.value = "";
+  loadTransactions();
+});
+
+function openEditModal(expenseId) {
+  const expense = currentTransactions.find((x) => x.id === expenseId);
+  if (!expense) return;
+  editExpenseId.value = expense.id;
+  editDesc.value = expense.description;
+  editAmount.value = expense.amount;
+  editCategory.value = expense.category;
+  editModalBackdrop.style.display = "flex";
+}
+
+function closeEditModal() {
+  editModalBackdrop.style.display = "none";
+}
+
+editCancelBtn.addEventListener("click", closeEditModal);
+editModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === editModalBackdrop) closeEditModal();
+});
+
+editForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
   try {
-    const res = await fetch(`/api/expenses/${btn.dataset.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/expenses/${editExpenseId.value}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: editDesc.value,
+        amount: editAmount.value,
+        category: editCategory.value,
+      }),
+    });
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || "Could not delete transaction");
+      throw new Error(data.error || "Could not save changes");
     }
+    closeEditModal();
     await loadTransactions();
+    showToast("Expense updated");
   } catch (err) {
     showError(err.message);
   }
 });
 
+txnBody.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest(".edit-btn");
+  if (editBtn) {
+    openEditModal(Number(editBtn.dataset.id));
+    return;
+  }
+
+  const deleteBtn = e.target.closest(".delete-btn");
+  if (!deleteBtn) return;
+  const id = deleteBtn.dataset.id;
+  try {
+    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Could not delete transaction");
+    }
+    await loadTransactions();
+    showToast("Expense deleted", {
+      actionLabel: "Undo",
+      onAction: async () => {
+        try {
+          const restoreRes = await fetch(`/api/expenses/${id}/restore`, { method: "POST" });
+          if (!restoreRes.ok) throw new Error("Could not restore");
+          await loadTransactions();
+          showToast("Restored");
+        } catch (err) {
+          showError(err.message);
+        }
+      },
+    });
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+restoreBtn.addEventListener("click", () => restoreFileInput.click());
+
+restoreFileInput.addEventListener("change", async () => {
+  const file = restoreFileInput.files[0];
+  if (!file) return;
+  const confirmed = confirm(
+    "This will REPLACE all current data (days, expenses, income, budgets, recurring items) with the contents of this backup file. This cannot be undone. Continue?"
+  );
+  if (!confirmed) {
+    restoreFileInput.value = "";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("backup", file);
+  try {
+    const res = await fetch("/api/restore", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Restore failed");
+    showToast("Data restored ✅", { type: "success" });
+    await loadTransactions();
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    restoreFileInput.value = "";
+  }
+});
+
+loadCategoriesForFilter();
 loadTransactions();

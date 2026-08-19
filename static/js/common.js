@@ -76,6 +76,8 @@ async function loadStreak({ celebrateOnIncrease = false } = {}) {
   return streak;
 }
 
+// opts.actionLabel + opts.onAction show a clickable button inside the toast
+// (used for "Undo" after a delete) and keep it on screen a bit longer.
 function showToast(message, opts = {}) {
   let container = document.getElementById("toast-container");
   if (!container) {
@@ -86,14 +88,34 @@ function showToast(message, opts = {}) {
   }
   const toast = document.createElement("div");
   toast.className = "toast" + (opts.type ? ` toast-${opts.type}` : "");
-  toast.textContent = message;
-  container.appendChild(toast);
 
-  requestAnimationFrame(() => toast.classList.add("toast-visible"));
-  setTimeout(() => {
+  const text = document.createElement("span");
+  text.textContent = message;
+  toast.appendChild(text);
+
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     toast.classList.remove("toast-visible");
     setTimeout(() => toast.remove(), 300);
-  }, 2800);
+  };
+
+  if (opts.actionLabel && opts.onAction) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = opts.actionLabel;
+    btn.addEventListener("click", () => {
+      opts.onAction();
+      dismiss();
+    });
+    toast.appendChild(btn);
+  }
+
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("toast-visible"));
+  setTimeout(dismiss, opts.actionLabel ? 5000 : 2800);
 }
 
 function fireConfetti() {
