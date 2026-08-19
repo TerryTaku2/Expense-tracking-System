@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from flask import g
+from werkzeug.security import generate_password_hash
 
 # On Render, DATA_DIR points at the mounted persistent disk so the database
 # survives restarts/redeploys; locally it just falls back to this folder.
@@ -19,6 +20,7 @@ def get_connection():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 
@@ -34,6 +36,34 @@ def _ensure_column(conn, table, column, ddl):
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
 
+def _has_column(conn, table, column):
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    return column in cols
+
+
+def _table_exists(conn, table):
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone()
+    return row is not None
+
+
+def _migrate_legacy_single_user_table(conn, table, create_sql):
+    """Older deploys of this app had no user concept, so `days`/`budgets`/
+    `recurring` may exist without a user_id column and with constraints that
+    are wrong for multi-tenant use (e.g. a single global UNIQUE(date)).
+    SQLite can't just ALTER those constraints, so if user_id is missing we
+    rename the old table aside (never delete — the data stays recoverable)
+    and create a fresh, correctly-constrained table in its place."""
+    if not _table_exists(conn, table):
+        conn.execute(create_sql)
+        return
+    if _has_column(conn, table, "user_id"):
+        return
+    conn.execute(f"ALTER TABLE {table} RENAME TO {table}_pre_accounts")
+    conn.execute(create_sql)
+
+
 def init_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RECEIPTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,13 +72,57 @@ def init_db():
 
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS days (
+        CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT UNIQUE NOT NULL,
-            starting_balance REAL NOT NULL
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            business_name TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
         """
     )
+
+    _migrate_legacy_single_user_table(
+        conn, "days",
+        """
+        CREATE TABLE days (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            date TEXT NOT NULL,
+            starting_balance REAL NOT NULL,
+            UNIQUE(user_id, date)
+        )
+        """,
+    )
+    _migrate_legacy_single_user_table(
+        conn, "budgets",
+        """
+        CREATE TABLE budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            category TEXT NOT NULL,
+            amount REAL NOT NULL,
+            period TEXT NOT NULL CHECK(period IN ('weekly', 'monthly')),
+            UNIQUE(user_id, category)
+        )
+        """,
+    )
+    _migrate_legacy_single_user_table(
+        conn, "recurring",
+        """
+        CREATE TABLE recurring (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            description TEXT NOT NULL,
+            category TEXT NOT NULL,
+            amount REAL NOT NULL,
+            frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly')),
+            next_date TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        )
+        """,
+    )
+
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS expenses (
@@ -75,55 +149,56 @@ def init_db():
         )
         """
     )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS budgets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT UNIQUE NOT NULL,
-            amount REAL NOT NULL,
-            period TEXT NOT NULL CHECK(period IN ('weekly', 'monthly'))
-        )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS recurring (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            description TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly')),
-            next_date TEXT NOT NULL,
-            active INTEGER NOT NULL DEFAULT 1
-        )
-        """
-    )
     conn.commit()
     conn.close()
 
 
-# ---------- Days ----------
+# ---------- Users ----------
 
-def get_day(day_date):
+def get_user_by_email(email):
     row = get_connection().execute(
-        "SELECT * FROM days WHERE date = ?", (day_date,)
+        "SELECT * FROM users WHERE email = ?", (email.lower().strip(),)
     ).fetchone()
     return dict(row) if row else None
 
 
-def upsert_day(day_date, starting_balance):
+def get_user_by_id(user_id):
+    row = get_connection().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def create_user(email, password, business_name):
+    conn = get_connection()
+    cur = conn.execute(
+        "INSERT INTO users (email, password_hash, business_name) VALUES (?, ?, ?)",
+        (email.lower().strip(), generate_password_hash(password), business_name.strip() or None),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+# ---------- Days ----------
+
+def get_day(user_id, day_date):
+    row = get_connection().execute(
+        "SELECT * FROM days WHERE user_id = ? AND date = ?", (user_id, day_date)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_day(user_id, day_date, starting_balance):
     conn = get_connection()
     conn.execute(
         """
-        INSERT INTO days (date, starting_balance) VALUES (?, ?)
-        ON CONFLICT(date) DO UPDATE SET starting_balance = excluded.starting_balance
+        INSERT INTO days (user_id, date, starting_balance) VALUES (?, ?, ?)
+        ON CONFLICT(user_id, date) DO UPDATE SET starting_balance = excluded.starting_balance
         """,
-        (day_date, starting_balance),
+        (user_id, day_date, starting_balance),
     )
     conn.commit()
 
 
-def get_previous_day(before_date):
+def get_previous_day(user_id, before_date):
     row = get_connection().execute(
         """
         SELECT d.id AS id, d.date AS date, d.starting_balance AS starting_balance,
@@ -131,12 +206,12 @@ def get_previous_day(before_date):
                COALESCE((SELECT SUM(amount) FROM income WHERE day_id = d.id), 0) AS total_income
         FROM days d
         LEFT JOIN expenses e ON e.day_id = d.id AND e.deleted_at IS NULL
-        WHERE d.date < ?
+        WHERE d.user_id = ? AND d.date < ?
         GROUP BY d.id
         ORDER BY d.date DESC
         LIMIT 1
         """,
-        (before_date,),
+        (user_id, before_date),
     ).fetchone()
     if row is None:
         return None
@@ -146,6 +221,10 @@ def get_previous_day(before_date):
 
 
 # ---------- Expenses ----------
+# day_id-based helpers below are only ever called with a day_id that the
+# caller already obtained from a user-scoped get_day(user_id, ...), so
+# ownership is implied. Anything reachable by a bare id from a URL
+# (get_expense, update/delete/restore, receipts) re-checks user_id itself.
 
 def get_expenses(day_id):
     rows = get_connection().execute(
@@ -165,34 +244,50 @@ def add_expense(day_id, description, category, amount):
     return cur.lastrowid
 
 
-def get_expense(expense_id):
+def get_expense(user_id, expense_id):
     row = get_connection().execute(
-        "SELECT e.*, d.date AS date FROM expenses e JOIN days d ON d.id = e.day_id WHERE e.id = ?",
-        (expense_id,),
+        """
+        SELECT e.*, d.date AS date FROM expenses e
+        JOIN days d ON d.id = e.day_id
+        WHERE e.id = ? AND d.user_id = ?
+        """,
+        (expense_id, user_id),
     ).fetchone()
     return dict(row) if row else None
 
 
-def update_expense(expense_id, description, category, amount):
+def update_expense(user_id, expense_id, description, category, amount):
     conn = get_connection()
     conn.execute(
-        "UPDATE expenses SET description = ?, category = ?, amount = ? WHERE id = ?",
-        (description, category, amount, expense_id),
+        """
+        UPDATE expenses SET description = ?, category = ?, amount = ?
+        WHERE id = ? AND day_id IN (SELECT id FROM days WHERE user_id = ?)
+        """,
+        (description, category, amount, expense_id, user_id),
     )
     conn.commit()
 
 
-def set_expense_receipt(expense_id, filename):
+def set_expense_receipt(user_id, expense_id, filename):
     conn = get_connection()
-    conn.execute("UPDATE expenses SET receipt_filename = ? WHERE id = ?", (filename, expense_id))
+    conn.execute(
+        """
+        UPDATE expenses SET receipt_filename = ?
+        WHERE id = ? AND day_id IN (SELECT id FROM days WHERE user_id = ?)
+        """,
+        (filename, expense_id, user_id),
+    )
     conn.commit()
 
 
-def delete_expense(expense_id):
+def delete_expense(user_id, expense_id):
     conn = get_connection()
     row = conn.execute(
-        "SELECT d.date AS date FROM expenses e JOIN days d ON d.id = e.day_id WHERE e.id = ? AND e.deleted_at IS NULL",
-        (expense_id,),
+        """
+        SELECT d.date AS date FROM expenses e JOIN days d ON d.id = e.day_id
+        WHERE e.id = ? AND d.user_id = ? AND e.deleted_at IS NULL
+        """,
+        (expense_id, user_id),
     ).fetchone()
     if row is None:
         return None
@@ -201,11 +296,14 @@ def delete_expense(expense_id):
     return row["date"]
 
 
-def restore_expense(expense_id):
+def restore_expense(user_id, expense_id):
     conn = get_connection()
     row = conn.execute(
-        "SELECT d.date AS date FROM expenses e JOIN days d ON d.id = e.day_id WHERE e.id = ? AND e.deleted_at IS NOT NULL",
-        (expense_id,),
+        """
+        SELECT d.date AS date FROM expenses e JOIN days d ON d.id = e.day_id
+        WHERE e.id = ? AND d.user_id = ? AND e.deleted_at IS NOT NULL
+        """,
+        (expense_id, user_id),
     ).fetchone()
     if row is None:
         return None
@@ -214,9 +312,15 @@ def restore_expense(expense_id):
     return row["date"]
 
 
-def get_used_categories():
+def get_used_categories(user_id):
     rows = get_connection().execute(
-        "SELECT DISTINCT category FROM expenses ORDER BY category COLLATE NOCASE"
+        """
+        SELECT DISTINCT e.category FROM expenses e
+        JOIN days d ON d.id = e.day_id
+        WHERE d.user_id = ?
+        ORDER BY e.category COLLATE NOCASE
+        """,
+        (user_id,),
     ).fetchall()
     used = [r["category"] for r in rows]
     merged = list(DEFAULT_CATEGORIES)
@@ -226,7 +330,7 @@ def get_used_categories():
     return merged
 
 
-def get_all_expenses(q=None, category=None, date_from=None, date_to=None,
+def get_all_expenses(user_id, q=None, category=None, date_from=None, date_to=None,
                       min_amount=None, max_amount=None):
     sql = """
         SELECT e.id AS id, d.date AS date, e.category AS category,
@@ -234,9 +338,9 @@ def get_all_expenses(q=None, category=None, date_from=None, date_to=None,
                e.receipt_filename AS receipt_filename
         FROM expenses e
         JOIN days d ON d.id = e.day_id
-        WHERE e.deleted_at IS NULL
+        WHERE e.deleted_at IS NULL AND d.user_id = ?
     """
-    params = []
+    params = [user_id]
     if q:
         sql += " AND (e.description LIKE ? OR e.category LIKE ?)"
         like = f"%{q}%"
@@ -281,11 +385,14 @@ def add_income(day_id, description, amount):
     conn.commit()
 
 
-def delete_income(income_id):
+def delete_income(user_id, income_id):
     conn = get_connection()
     row = conn.execute(
-        "SELECT d.date AS date FROM income i JOIN days d ON d.id = i.day_id WHERE i.id = ?",
-        (income_id,),
+        """
+        SELECT d.date AS date FROM income i JOIN days d ON d.id = i.day_id
+        WHERE i.id = ? AND d.user_id = ?
+        """,
+        (income_id, user_id),
     ).fetchone()
     if row is None:
         return None
@@ -294,13 +401,9 @@ def delete_income(income_id):
     return row["date"]
 
 
-def get_used_categories_with(extra_table_amounts=True):
-    return get_used_categories()
-
-
 # ---------- History ----------
 
-def get_history():
+def get_history(user_id):
     rows = get_connection().execute(
         """
         SELECT
@@ -310,8 +413,10 @@ def get_history():
             COALESCE((SELECT SUM(amount) FROM income WHERE day_id = d.id), 0) AS total_income,
             (SELECT COUNT(*) FROM expenses WHERE day_id = d.id AND deleted_at IS NULL) AS expense_count
         FROM days d
+        WHERE d.user_id = ?
         ORDER BY d.date DESC
-        """
+        """,
+        (user_id,),
     ).fetchall()
     history = []
     for row in rows:
@@ -321,7 +426,7 @@ def get_history():
     return history
 
 
-def get_trends(days=30):
+def get_trends(user_id, days=30):
     rows = get_connection().execute(
         """
         SELECT
@@ -330,28 +435,29 @@ def get_trends(days=30):
             COALESCE((SELECT SUM(amount) FROM expenses WHERE day_id = d.id AND deleted_at IS NULL), 0) AS total_spent,
             COALESCE((SELECT SUM(amount) FROM income WHERE day_id = d.id), 0) AS total_income
         FROM days d
+        WHERE d.user_id = ?
         ORDER BY d.date DESC
         LIMIT ?
         """,
-        (days,),
+        (user_id, days),
     ).fetchall()
     trends = [dict(r) for r in rows]
     trends.reverse()
     return trends
 
 
-def get_summary(period_start, period_end, prev_start, prev_end):
+def get_summary(user_id, period_start, period_end, prev_start, prev_end):
     def totals(start, end):
         row = get_connection().execute(
             """
             SELECT
                 COALESCE((SELECT SUM(e.amount) FROM expenses e JOIN days d ON d.id = e.day_id
-                          WHERE e.deleted_at IS NULL AND d.date >= ? AND d.date <= ?), 0) AS total_spent,
+                          WHERE e.deleted_at IS NULL AND d.user_id = ? AND d.date >= ? AND d.date <= ?), 0) AS total_spent,
                 COALESCE((SELECT SUM(i.amount) FROM income i JOIN days d ON d.id = i.day_id
-                          WHERE d.date >= ? AND d.date <= ?), 0) AS total_income,
-                (SELECT COUNT(DISTINCT d.id) FROM days d WHERE d.date >= ? AND d.date <= ?) AS days_tracked
+                          WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?), 0) AS total_income,
+                (SELECT COUNT(DISTINCT d.id) FROM days d WHERE d.user_id = ? AND d.date >= ? AND d.date <= ?) AS days_tracked
             """,
-            (start, end, start, end, start, end),
+            (user_id, start, end, user_id, start, end, user_id, start, end),
         ).fetchone()
         return dict(row)
 
@@ -362,12 +468,12 @@ def get_summary(period_start, period_end, prev_start, prev_end):
         """
         SELECT e.category AS category, SUM(e.amount) AS total
         FROM expenses e JOIN days d ON d.id = e.day_id
-        WHERE e.deleted_at IS NULL AND d.date >= ? AND d.date <= ?
+        WHERE e.deleted_at IS NULL AND d.user_id = ? AND d.date >= ? AND d.date <= ?
         GROUP BY e.category
         ORDER BY total DESC
         LIMIT 1
         """,
-        (period_start, period_end),
+        (user_id, period_start, period_end),
     ).fetchone()
 
     return {
@@ -383,44 +489,46 @@ def get_summary(period_start, period_end, prev_start, prev_end):
 
 # ---------- Budgets ----------
 
-def get_budgets():
-    rows = get_connection().execute("SELECT * FROM budgets ORDER BY category COLLATE NOCASE").fetchall()
+def get_budgets(user_id):
+    rows = get_connection().execute(
+        "SELECT * FROM budgets WHERE user_id = ? ORDER BY category COLLATE NOCASE", (user_id,)
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
-def upsert_budget(category, amount, period):
+def upsert_budget(user_id, category, amount, period):
     conn = get_connection()
     conn.execute(
         """
-        INSERT INTO budgets (category, amount, period) VALUES (?, ?, ?)
-        ON CONFLICT(category) DO UPDATE SET amount = excluded.amount, period = excluded.period
+        INSERT INTO budgets (user_id, category, amount, period) VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, category) DO UPDATE SET amount = excluded.amount, period = excluded.period
         """,
-        (category, amount, period),
+        (user_id, category, amount, period),
     )
     conn.commit()
 
 
-def delete_budget(category):
+def delete_budget(user_id, category):
     conn = get_connection()
-    conn.execute("DELETE FROM budgets WHERE category = ?", (category,))
+    conn.execute("DELETE FROM budgets WHERE user_id = ? AND category = ?", (user_id, category))
     conn.commit()
 
 
-def get_budget_progress():
+def get_budget_progress(user_id):
     today = date.today()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
     progress = []
-    for b in get_budgets():
+    for b in get_budgets(user_id):
         start = week_start if b["period"] == "weekly" else month_start
         row = get_connection().execute(
             """
             SELECT COALESCE(SUM(e.amount), 0) AS spent
             FROM expenses e JOIN days d ON d.id = e.day_id
-            WHERE e.deleted_at IS NULL AND e.category = ? AND d.date >= ? AND d.date <= ?
+            WHERE e.deleted_at IS NULL AND d.user_id = ? AND e.category = ? AND d.date >= ? AND d.date <= ?
             """,
-            (b["category"], start.isoformat(), today.isoformat()),
+            (user_id, b["category"], start.isoformat(), today.isoformat()),
         ).fetchone()
         spent = row["spent"]
         progress.append({
@@ -437,29 +545,37 @@ def get_budget_progress():
 
 # ---------- Recurring ----------
 
-def get_recurring():
-    rows = get_connection().execute("SELECT * FROM recurring ORDER BY next_date").fetchall()
+def get_recurring(user_id):
+    rows = get_connection().execute(
+        "SELECT * FROM recurring WHERE user_id = ? ORDER BY next_date", (user_id,)
+    ).fetchall()
     return [dict(r) for r in rows]
 
 
-def add_recurring(description, category, amount, frequency, start_date):
+def add_recurring(user_id, description, category, amount, frequency, start_date):
     conn = get_connection()
     conn.execute(
-        "INSERT INTO recurring (description, category, amount, frequency, next_date) VALUES (?, ?, ?, ?, ?)",
-        (description, category, amount, frequency, start_date),
+        """
+        INSERT INTO recurring (user_id, description, category, amount, frequency, next_date)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (user_id, description, category, amount, frequency, start_date),
     )
     conn.commit()
 
 
-def set_recurring_active(recurring_id, active):
+def set_recurring_active(user_id, recurring_id, active):
     conn = get_connection()
-    conn.execute("UPDATE recurring SET active = ? WHERE id = ?", (1 if active else 0, recurring_id))
+    conn.execute(
+        "UPDATE recurring SET active = ? WHERE id = ? AND user_id = ?",
+        (1 if active else 0, recurring_id, user_id),
+    )
     conn.commit()
 
 
-def delete_recurring(recurring_id):
+def delete_recurring(user_id, recurring_id):
     conn = get_connection()
-    conn.execute("DELETE FROM recurring WHERE id = ?", (recurring_id,))
+    conn.execute("DELETE FROM recurring WHERE id = ? AND user_id = ?", (recurring_id, user_id))
     conn.commit()
 
 
@@ -480,12 +596,12 @@ def _advance_date(iso_date, frequency):
     return d.isoformat()
 
 
-def apply_due_recurring(target_date):
+def apply_due_recurring(user_id, target_date):
     """Applies any recurring items due on/before target_date into that day,
     catching up on missed occurrences one at a time. Only runs if the day
     already exists (has a starting balance), since there's nowhere to file
     the expense otherwise."""
-    day = get_day(target_date)
+    day = get_day(user_id, target_date)
     if day is None:
         return []
 
@@ -493,8 +609,8 @@ def apply_due_recurring(target_date):
     applied = []
     for _ in range(60):  # safety cap against runaway catch-up loops
         due = conn.execute(
-            "SELECT * FROM recurring WHERE active = 1 AND next_date <= ? ORDER BY next_date LIMIT 1",
-            (target_date,),
+            "SELECT * FROM recurring WHERE user_id = ? AND active = 1 AND next_date <= ? ORDER BY next_date LIMIT 1",
+            (user_id, target_date),
         ).fetchone()
         if due is None:
             break
@@ -508,55 +624,75 @@ def apply_due_recurring(target_date):
 
 # ---------- Backup / restore ----------
 
-def export_backup():
+def export_backup(user_id):
     conn = get_connection()
-    return {
-        "days": [dict(r) for r in conn.execute("SELECT * FROM days").fetchall()],
-        "expenses": [dict(r) for r in conn.execute("SELECT * FROM expenses").fetchall()],
-        "income": [dict(r) for r in conn.execute("SELECT * FROM income").fetchall()],
-        "budgets": [dict(r) for r in conn.execute("SELECT * FROM budgets").fetchall()],
-        "recurring": [dict(r) for r in conn.execute("SELECT * FROM recurring").fetchall()],
-    }
+    days = [dict(r) for r in conn.execute("SELECT * FROM days WHERE user_id = ?", (user_id,)).fetchall()]
+    day_ids = [d["id"] for d in days]
+    placeholders = ",".join("?" * len(day_ids)) if day_ids else "NULL"
+    expenses = (
+        [dict(r) for r in conn.execute(f"SELECT * FROM expenses WHERE day_id IN ({placeholders})", day_ids).fetchall()]
+        if day_ids else []
+    )
+    income = (
+        [dict(r) for r in conn.execute(f"SELECT * FROM income WHERE day_id IN ({placeholders})", day_ids).fetchall()]
+        if day_ids else []
+    )
+    budgets = [dict(r) for r in conn.execute("SELECT * FROM budgets WHERE user_id = ?", (user_id,)).fetchall()]
+    recurring = [dict(r) for r in conn.execute("SELECT * FROM recurring WHERE user_id = ?", (user_id,)).fetchall()]
+    return {"days": days, "expenses": expenses, "income": income, "budgets": budgets, "recurring": recurring}
 
 
-def import_backup(data):
+def import_backup(user_id, data):
+    """Replaces only the current user's data with the contents of the
+    backup. Rows are re-inserted with fresh ids (never the original ones,
+    since those ids are shared across all accounts) and day_id references
+    in expenses/income are remapped to match."""
     conn = get_connection()
-    conn.execute("DELETE FROM income")
-    conn.execute("DELETE FROM expenses")
-    conn.execute("DELETE FROM budgets")
-    conn.execute("DELETE FROM recurring")
-    conn.execute("DELETE FROM days")
+    conn.execute("DELETE FROM income WHERE day_id IN (SELECT id FROM days WHERE user_id = ?)", (user_id,))
+    conn.execute("DELETE FROM expenses WHERE day_id IN (SELECT id FROM days WHERE user_id = ?)", (user_id,))
+    conn.execute("DELETE FROM budgets WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM recurring WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM days WHERE user_id = ?", (user_id,))
 
+    day_id_map = {}
     for d in data.get("days", []):
-        conn.execute(
-            "INSERT INTO days (id, date, starting_balance) VALUES (?, ?, ?)",
-            (d["id"], d["date"], d["starting_balance"]),
+        cur = conn.execute(
+            "INSERT INTO days (user_id, date, starting_balance) VALUES (?, ?, ?)",
+            (user_id, d["date"], d["starting_balance"]),
         )
+        day_id_map[d["id"]] = cur.lastrowid
+
     for e in data.get("expenses", []):
+        new_day_id = day_id_map.get(e["day_id"])
+        if new_day_id is None:
+            continue
         conn.execute(
             """
-            INSERT INTO expenses (id, day_id, description, category, amount, created_at, receipt_filename, deleted_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (day_id, description, category, amount, created_at, receipt_filename, deleted_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (e["id"], e["day_id"], e["description"], e["category"], e["amount"],
+            (new_day_id, e["description"], e["category"], e["amount"],
              e.get("created_at"), e.get("receipt_filename"), e.get("deleted_at")),
         )
     for i in data.get("income", []):
+        new_day_id = day_id_map.get(i["day_id"])
+        if new_day_id is None:
+            continue
         conn.execute(
-            "INSERT INTO income (id, day_id, description, amount, created_at) VALUES (?, ?, ?, ?, ?)",
-            (i["id"], i["day_id"], i["description"], i["amount"], i.get("created_at")),
+            "INSERT INTO income (day_id, description, amount, created_at) VALUES (?, ?, ?, ?)",
+            (new_day_id, i["description"], i["amount"], i.get("created_at")),
         )
     for b in data.get("budgets", []):
         conn.execute(
-            "INSERT INTO budgets (id, category, amount, period) VALUES (?, ?, ?, ?)",
-            (b["id"], b["category"], b["amount"], b["period"]),
+            "INSERT INTO budgets (user_id, category, amount, period) VALUES (?, ?, ?, ?)",
+            (user_id, b["category"], b["amount"], b["period"]),
         )
     for r in data.get("recurring", []):
         conn.execute(
             """
-            INSERT INTO recurring (id, description, category, amount, frequency, next_date, active)
+            INSERT INTO recurring (user_id, description, category, amount, frequency, next_date, active)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (r["id"], r["description"], r["category"], r["amount"], r["frequency"], r["next_date"], r["active"]),
+            (user_id, r["description"], r["category"], r["amount"], r["frequency"], r["next_date"], r["active"]),
         )
     conn.commit()

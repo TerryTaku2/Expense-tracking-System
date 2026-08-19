@@ -78,7 +78,7 @@ async function loadTransactions() {
     .map((t) => {
       const color = colorForCategory(t.category);
       const receiptLink = t.receipt_filename
-        ? ` <a class="receipt-link" href="/receipts/${encodeURIComponent(t.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
+        ? ` <a class="receipt-link" href="/receipts/${t.id}/${encodeURIComponent(t.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
         : "";
       return `
         <tr data-id="${t.id}">

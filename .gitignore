@@ -4,3 +4,5 @@ venv/
 .venv/
 expense_tracker.db
 server.log
+.secret_key
+receipts/

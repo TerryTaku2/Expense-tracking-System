@@ -303,7 +303,7 @@ function renderActivity(expenses, income) {
       }
 
       const receiptLink = item.receipt_filename
-        ? `<a class="receipt-link" href="/receipts/${encodeURIComponent(item.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
+        ? `<a class="receipt-link" href="/receipts/${item.id}/${encodeURIComponent(item.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
         : "";
       return `
         <li class="expense-item" ${delay}>

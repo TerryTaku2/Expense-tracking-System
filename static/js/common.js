@@ -84,6 +84,7 @@ const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 200, 365];
 // Streak = consecutive most-recent days (by date) that counted.
 async function loadStreak({ celebrateOnIncrease = false } = {}) {
   const res = await fetch("/api/history");
+  if (!res.ok) return 0;
   const days = await res.json();
 
   let streak = 0;
@@ -251,7 +252,21 @@ function initInstallPrompt() {
   });
 }
 
+function initLogout() {
+  const btn = document.getElementById("logout-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await fetch("/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
+  });
+}
+
 initTheme();
 loadStreak();
 registerServiceWorker();
 initInstallPrompt();
+initLogout();

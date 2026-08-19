@@ -229,6 +229,22 @@ nav.tabs a.active {
   }
 }
 
+.account-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .account-label {
+    display: none;
+  }
+}
+
 .theme-toggle {
   width: 38px;
   height: 38px;
@@ -1118,6 +1134,40 @@ svg.icon {
 
 .recurring-item.paused {
   opacity: 0.6;
+}
+
+/* Auth pages */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.auth-card .error-banner.visible {
+  margin-bottom: 14px;
+}
+
+.auth-switch {
+  margin-top: 18px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.auth-switch a {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-switch a:hover {
+  text-decoration: underline;
 }
 
 /* Modal */

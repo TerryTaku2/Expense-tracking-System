@@ -16,6 +16,8 @@
       <a href="/insights" class="{{ 'active' if active_page == 'insights' else '' }}">Insights</a>
     </nav>
     <button type="button" class="install-btn" id="install-btn" style="display:none;"><svg class="icon"><use href="#icon-install"/></svg> Install App</button>
+    <span class="account-label" title="{{ current_user.email }}">{{ current_user.business_name or current_user.email }}</span>
     <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme"><svg class="icon"><use id="theme-toggle-icon" href="#icon-moon"/></svg></button>
+    <button type="button" class="theme-toggle" id="logout-btn" title="Log out" aria-label="Log out"><svg class="icon"><use href="#icon-logout"/></svg></button>
   </div>
 </header>
