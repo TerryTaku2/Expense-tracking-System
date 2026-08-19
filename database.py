@@ -149,8 +149,40 @@ def init_db():
         )
         """
     )
+
+    _quarantine_orphaned_rows(conn, "expenses")
+    _quarantine_orphaned_rows(conn, "income")
+
     conn.commit()
     conn.close()
+
+
+def _quarantine_orphaned_rows(conn, table):
+    """The days/budgets/recurring migration above rebuilds `days` with its
+    own autoincrement starting back at 1, but expenses/income are never
+    rebuilt - they're only ever queried through a day_id a caller already
+    obtained from a user-scoped day, so leaving them in place seemed
+    harmless. It isn't: a freshly migrated `days` table can mint a new
+    day with the same id an old, pre-accounts day used to have, and any
+    expenses/income still attached to that old id would then leak straight
+    into whichever new user happens to land on that id. Sweeping anything
+    whose day_id no longer resolves in the current `days` table into a
+    same-shaped quarantine table (never deleted) closes that hole, and is
+    safe to run on every boot since a legitimate row's day_id always comes
+    from a day that still exists."""
+    if not _table_exists(conn, table):
+        return
+    orphaned = conn.execute(
+        f"SELECT COUNT(*) AS n FROM {table} WHERE day_id NOT IN (SELECT id FROM days)"
+    ).fetchone()["n"]
+    if not orphaned:
+        return
+    if not _table_exists(conn, f"{table}_orphaned"):
+        conn.execute(f"CREATE TABLE {table}_orphaned AS SELECT * FROM {table} WHERE 0")
+    conn.execute(
+        f"INSERT INTO {table}_orphaned SELECT * FROM {table} WHERE day_id NOT IN (SELECT id FROM days)"
+    )
+    conn.execute(f"DELETE FROM {table} WHERE day_id NOT IN (SELECT id FROM days)")
 
 
 # ---------- Users ----------
