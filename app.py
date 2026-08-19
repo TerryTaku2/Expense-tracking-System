@@ -9,7 +9,7 @@ from flask import (Flask, Response, jsonify, redirect, render_template,
                     request, send_from_directory, url_for)
 from flask_login import (LoginManager, UserMixin, current_user, login_required,
                           login_user, logout_user)
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 import database
@@ -18,6 +18,7 @@ app = Flask(__name__)
 application = app  # some WSGI hosts (e.g. PythonAnywhere) look for this name
 
 ALLOWED_RECEIPT_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp", "pdf"}
+_DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_hex(16))
 MAX_RECEIPT_BYTES = 8 * 1024 * 1024
 
 # Runs on import so the tables exist under a real WSGI server too, not just
@@ -45,6 +46,10 @@ def _get_or_create_secret_key():
 app.secret_key = _get_or_create_secret_key()
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
+# Rejects oversized request bodies before Flask reads them into memory at
+# all (receipts cap at 8MB app-side; this just adds headroom + a hard
+# backstop for backup/restore uploads).
+app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -132,7 +137,12 @@ def login_page():
     password = data.get("password") or ""
 
     row = database.get_user_by_email(email)
-    if row is None or not check_password_hash(row["password_hash"], password):
+    # Hash against a dummy value even when the user doesn't exist, so a
+    # "no such account" response doesn't return measurably faster than a
+    # "wrong password" one and let an attacker enumerate registered emails.
+    password_hash = row["password_hash"] if row else _DUMMY_PASSWORD_HASH
+    password_ok = check_password_hash(password_hash, password)
+    if row is None or not password_ok:
         return jsonify({"error": "incorrect email or password"}), 401
 
     login_user(User(row), remember=True)
@@ -574,10 +584,18 @@ def restore():
         return jsonify({"error": "invalid backup file"}), 400
 
     required_keys = {"days", "expenses", "income", "budgets", "recurring"}
-    if not required_keys.issubset(data.keys()):
+    if not isinstance(data, dict) or not required_keys.issubset(data.keys()):
         return jsonify({"error": "backup file is missing expected data"}), 400
+    if not all(isinstance(data[key], list) for key in required_keys):
+        return jsonify({"error": "backup file is malformed"}), 400
 
-    database.import_backup(current_user.id, data)
+    try:
+        database.import_backup(current_user.id, data)
+    except (KeyError, TypeError, database.sqlite3.DatabaseError):
+        # Any partial writes made before the error roll back automatically
+        # (nothing is committed until import_backup finishes), so the
+        # user's existing data is safe even though the restore failed.
+        return jsonify({"error": "backup file is malformed"}), 400
     return jsonify({"status": "restored"})
 
 
