@@ -248,10 +248,9 @@ function renderBreakdown(expenses, totalSpent) {
   breakdownLegend.innerHTML = sorted
     .map(([category, amount]) => {
       const pct = (amount / totalSpent) * 100;
-      const color = colorForCategory(category);
       return `
         <div class="legend-item">
-          <span class="category-dot" style="background:${color}"></span>
+          ${categoryDot(category, "small")}
           <span>${escapeHtml(category)}</span>
           <span class="legend-amount">${formatMoney(amount)} · ${pct.toFixed(0)}%</span>
         </div>
@@ -290,26 +289,25 @@ function renderActivity(expenses, income) {
       if (item.activityType === "income") {
         return `
           <li class="expense-item" ${delay}>
-            <span class="category-dot" style="background:var(--success)"></span>
+            <span class="category-dot" style="background:var(--success)"><svg class="icon"><use href="#icon-income"/></svg></span>
             <div class="expense-info">
               <div class="expense-desc">${escapeHtml(item.description)}</div>
               <div class="expense-meta">Income · ${time}</div>
             </div>
             <div class="expense-amount income">+${formatMoney(item.amount)}</div>
             <div class="row-actions">
-              <button class="delete-btn" data-id="${item.id}" data-type="income" title="Delete">✕</button>
+              <button class="delete-btn" data-id="${item.id}" data-type="income" title="Delete"><svg class="icon"><use href="#icon-delete"/></svg></button>
             </div>
           </li>
         `;
       }
 
-      const color = colorForCategory(item.category);
       const receiptLink = item.receipt_filename
-        ? `<a class="receipt-link" href="/receipts/${encodeURIComponent(item.receipt_filename)}" target="_blank" rel="noopener" title="View receipt">📎</a>`
+        ? `<a class="receipt-link" href="/receipts/${encodeURIComponent(item.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
         : "";
       return `
         <li class="expense-item" ${delay}>
-          <span class="category-dot" style="background:${color}"></span>
+          ${categoryDot(item.category)}
           <div class="expense-info">
             <div class="expense-desc">${escapeHtml(item.description)}</div>
             <div class="expense-meta">${escapeHtml(item.category)} · ${time}</div>
@@ -317,8 +315,8 @@ function renderActivity(expenses, income) {
           ${receiptLink}
           <div class="expense-amount">-${formatMoney(item.amount)}</div>
           <div class="row-actions">
-            <button class="edit-btn" data-id="${item.id}" title="Edit">✎</button>
-            <button class="delete-btn" data-id="${item.id}" data-type="expense" title="Delete">✕</button>
+            <button class="edit-btn" data-id="${item.id}" title="Edit"><svg class="icon"><use href="#icon-edit"/></svg></button>
+            <button class="delete-btn" data-id="${item.id}" data-type="expense" title="Delete"><svg class="icon"><use href="#icon-delete"/></svg></button>
           </div>
         </li>
       `;

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
+  {% include "_icons.html" %}
   {% include "_topbar.html" %}
 
   <main>
@@ -26,7 +27,7 @@
         <form id="budget-form" class="inline-form">
           <div class="field">
             <label for="budget-category">Category</label>
-            <input type="text" id="budget-category" list="category-suggestions" placeholder="e.g. Food" maxlength="40" required />
+            <input type="text" id="budget-category" list="category-suggestions" placeholder="e.g. Stock" maxlength="40" required />
             <datalist id="category-suggestions"></datalist>
           </div>
           <div class="field-row">
@@ -51,7 +52,7 @@
         <form id="recurring-form" class="inline-form">
           <div class="field">
             <label for="recurring-desc">Description</label>
-            <input type="text" id="recurring-desc" placeholder="e.g. Netflix" maxlength="120" required />
+            <input type="text" id="recurring-desc" placeholder="e.g. Shop rent" maxlength="120" required />
           </div>
           <div class="field-row">
             <div class="field">
@@ -86,7 +87,7 @@
       <div class="section-title">Budget progress</div>
       <div id="budgets-list" class="budgets-list"></div>
       <div class="empty-state" id="budgets-empty" style="display:none;">
-        <div class="empty-icon">🎯</div>
+        <svg class="icon empty-icon"><use href="#icon-target"/></svg>
         <div>No budgets set yet — add one above to start tracking a category cap.</div>
       </div>
     </div>
@@ -95,7 +96,7 @@
       <div class="section-title">Recurring items</div>
       <div id="recurring-list" class="recurring-list"></div>
       <div class="empty-state" id="recurring-empty" style="display:none;">
-        <div class="empty-icon">🔁</div>
+        <svg class="icon empty-icon"><use href="#icon-repeat"/></svg>
         <div>No recurring expenses set up yet.</div>
       </div>
     </div>

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
+  {% include "_icons.html" %}
   {% include "_topbar.html" %}
 
   <main>
@@ -22,7 +23,7 @@
     <div id="error-banner" class="error-banner"></div>
 
     <div id="setup-view" class="card setup-card fade-in" style="display:none;">
-      <div class="setup-icon">💰</div>
+      <div class="setup-icon"><svg class="icon"><use href="#icon-wallet"/></svg></div>
       <h2>Set your starting balance</h2>
       <p class="balance-sub">How much money are you starting this day with?</p>
 
@@ -91,8 +92,8 @@
 
         <div class="card fade-in">
           <div class="setup-options" id="entry-type-options">
-            <button type="button" class="setup-option active" data-type="expense">💸 Expense</button>
-            <button type="button" class="setup-option" data-type="income">💰 Income</button>
+            <button type="button" class="setup-option active" data-type="expense"><svg class="icon"><use href="#icon-expense"/></svg> Expense</button>
+            <button type="button" class="setup-option" data-type="income"><svg class="icon"><use href="#icon-income"/></svg> Income</button>
           </div>
 
           <form id="expense-form" class="inline-form">
@@ -130,7 +131,7 @@
         <div class="section-title">Today's activity</div>
         <ul class="expense-list" id="expense-list"></ul>
         <div class="empty-state" id="empty-state" style="display:none;">
-          <div class="empty-icon">🧾</div>
+          <svg class="icon empty-icon"><use href="#icon-receipt"/></svg>
           <div>Nothing logged yet — add your first expense or income above.</div>
         </div>
       </div>

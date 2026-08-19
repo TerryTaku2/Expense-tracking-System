@@ -1,11 +1,34 @@
 const CATEGORY_COLORS = {
+  Stock: "#2563eb",
+  Staff: "#7c3aed",
+  Rent: "#b45309",
+  Utilities: "#d97706",
+  Transport: "#0891b2",
+  Supplies: "#db2777",
+  Marketing: "#dc2626",
+  Bills: "#0d9488",
+  Other: "#6b7280",
+  // Legacy categories, kept so any pre-existing data still renders sensibly.
   Food: "#f59e0b",
-  Transport: "#3b82f6",
-  Bills: "#8b5cf6",
-  Shopping: "#ec4899",
+  Shopping: "#db2777",
   Health: "#10b981",
   Entertainment: "#f43f5e",
-  Other: "#6b7280",
+};
+
+const CATEGORY_ICONS = {
+  Stock: "icon-cat-stock",
+  Staff: "icon-cat-staff",
+  Rent: "icon-cat-rent",
+  Utilities: "icon-cat-utilities",
+  Transport: "icon-cat-transport",
+  Supplies: "icon-cat-shopping",
+  Marketing: "icon-cat-marketing",
+  Bills: "icon-cat-bills",
+  Other: "icon-cat-other",
+  Food: "icon-cat-food",
+  Shopping: "icon-cat-shopping",
+  Health: "icon-cat-other",
+  Entertainment: "icon-cat-other",
 };
 
 // Any category not in the fixed palette above gets a stable color derived
@@ -20,13 +43,25 @@ function colorForCategory(category) {
   return `hsl(${hue}, 65%, 50%)`;
 }
 
+function iconForCategory(category) {
+  return CATEGORY_ICONS[category] || "icon-cat-other";
+}
+
+// Renders the colored circle-with-icon used everywhere a category is shown
+// (activity list, transactions table, budgets, legends).
+function categoryDot(category, sizeClass) {
+  const color = colorForCategory(category);
+  const icon = iconForCategory(category);
+  return `<span class="category-dot ${sizeClass || ""}" style="background:${color}"><svg class="icon"><use href="#${icon}"/></svg></span>`;
+}
+
 const THEME_KEY = "expense-tracker-theme";
 const STREAK_KEY = "expense-tracker-last-streak";
 
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
-  const btn = document.getElementById("theme-toggle");
-  if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+  const icon = document.getElementById("theme-toggle-icon");
+  if (icon) icon.setAttribute("href", theme === "dark" ? "#icon-sun" : "#icon-moon");
 }
 
 function initTheme() {
@@ -186,7 +221,7 @@ function initInstallPrompt() {
   if (isStandalone) return;
 
   if (isIOS) {
-    btn.textContent = "📲 Add to Home Screen";
+    btn.innerHTML = '<svg class="icon"><use href="#icon-install"/></svg> Add to Home Screen';
     btn.style.display = "inline-flex";
     btn.addEventListener("click", () => {
       showToast('Tap the Share icon, then "Add to Home Screen"', { type: "success" });

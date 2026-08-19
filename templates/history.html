@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
+  {% include "_icons.html" %}
   {% include "_topbar.html" %}
 
   <main>
@@ -21,7 +22,7 @@
     <div class="card fade-in">
       <ul class="history-list" id="history-list"></ul>
       <div class="empty-state" id="history-empty" style="display:none;">
-        <div class="empty-icon">📅</div>
+        <svg class="icon empty-icon"><use href="#icon-calendar"/></svg>
         <div>No days recorded yet. Head to <a href="/">Today</a> to get started.</div>
       </div>
     </div>

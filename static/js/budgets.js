@@ -59,7 +59,6 @@ function renderBudgets(budgets) {
 
   budgetsList.innerHTML = budgets
     .map((b) => {
-      const color = colorForCategory(b.category);
       const barClass = b.pct >= 100 ? "danger" : b.pct >= 75 ? "warning" : "";
       const metaText =
         b.remaining >= 0
@@ -68,10 +67,10 @@ function renderBudgets(budgets) {
       return `
         <div class="budget-item">
           <div class="budget-item-header">
-            <span class="category-dot" style="background:${color}"></span>
+            ${categoryDot(b.category)}
             <strong>${escapeHtml(b.category)}</strong>
             <span class="tag-pill">${b.period}</span>
-            <button class="delete-btn" data-category="${encodeURIComponent(b.category)}" title="Remove budget">✕</button>
+            <button class="delete-btn" data-category="${encodeURIComponent(b.category)}" title="Remove budget"><svg class="icon"><use href="#icon-delete"/></svg></button>
           </div>
           <div class="budget-bar"><div class="budget-bar-fill ${barClass}" style="width:${Math.min(100, b.pct)}%"></div></div>
           <div class="budget-item-meta">${metaText}</div>
@@ -91,11 +90,11 @@ function renderRecurring(items) {
 
   recurringList.innerHTML = items
     .map((r) => {
-      const color = colorForCategory(r.category);
       const isPaused = !r.active;
+      const toggleIcon = isPaused ? "icon-play" : "icon-pause";
       return `
         <div class="recurring-item ${isPaused ? "paused" : ""}">
-          <span class="category-dot" style="background:${color}"></span>
+          ${categoryDot(r.category)}
           <div class="expense-info">
             <div class="expense-desc">${escapeHtml(r.description)}</div>
             <div class="expense-meta">${escapeHtml(r.category)} · ${r.frequency} · next ${r.next_date}</div>
@@ -103,8 +102,8 @@ function renderRecurring(items) {
           <span class="tag-pill ${isPaused ? "paused" : ""}">${isPaused ? "Paused" : "Active"}</span>
           <div class="expense-amount">${formatMoney(r.amount)}</div>
           <div class="row-actions">
-            <button class="edit-btn" data-id="${r.id}" data-active="${r.active}" title="${isPaused ? "Resume" : "Pause"}">${isPaused ? "▶" : "⏸"}</button>
-            <button class="delete-btn" data-id="${r.id}" title="Delete">✕</button>
+            <button class="edit-btn" data-id="${r.id}" data-active="${r.active}" title="${isPaused ? "Resume" : "Pause"}"><svg class="icon"><use href="#${toggleIcon}"/></svg></button>
+            <button class="delete-btn" data-id="${r.id}" title="Delete"><svg class="icon"><use href="#icon-delete"/></svg></button>
           </div>
         </div>
       `;

@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
 </head>
 <body>
+  {% include "_icons.html" %}
   {% include "_topbar.html" %}
 
   <main>
@@ -51,7 +52,7 @@
       <div class="section-title">Spending over time</div>
       <div id="trend-chart-wrap" class="trend-chart-wrap"></div>
       <div class="empty-state" id="trend-empty" style="display:none;">
-        <div class="empty-icon">📈</div>
+        <svg class="icon empty-icon"><use href="#icon-trend"/></svg>
         <div>Not enough data yet — track a few more days to see a trend.</div>
       </div>
     </div>

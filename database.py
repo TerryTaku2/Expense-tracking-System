@@ -12,7 +12,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
 DB_PATH = DATA_DIR / "expense_tracker.db"
 RECEIPTS_DIR = DATA_DIR / "receipts"
 
-DEFAULT_CATEGORIES = ["Food", "Transport", "Bills", "Shopping", "Health", "Entertainment", "Other"]
+DEFAULT_CATEGORIES = ["Stock", "Staff", "Rent", "Utilities", "Transport", "Supplies", "Marketing", "Bills", "Other"]
 
 
 def get_connection():

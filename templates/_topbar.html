@@ -1,11 +1,11 @@
 <header class="topbar">
   <a class="brand" href="/">
-    <span class="brand-mark">💸</span>
+    <span class="brand-mark"><svg class="icon"><use href="#icon-logo"/></svg></span>
     <span>Expense Tracker</span>
   </a>
   <div class="topbar-right">
     <div class="streak-badge" id="streak-badge" title="Consecutive days you've stayed within budget">
-      <span class="streak-flame" id="streak-flame">🔥</span>
+      <span class="streak-flame" id="streak-flame"><svg class="icon"><use href="#icon-streak"/></svg></span>
       <span id="streak-count">0</span>
     </div>
     <nav class="tabs">
@@ -15,7 +15,7 @@
       <a href="/budgets" class="{{ 'active' if active_page == 'budgets' else '' }}">Budgets</a>
       <a href="/insights" class="{{ 'active' if active_page == 'insights' else '' }}">Insights</a>
     </nav>
-    <button type="button" class="install-btn" id="install-btn" style="display:none;">⬇ Install App</button>
-    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">🌙</button>
+    <button type="button" class="install-btn" id="install-btn" style="display:none;"><svg class="icon"><use href="#icon-install"/></svg> Install App</button>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme"><svg class="icon"><use id="theme-toggle-icon" href="#icon-moon"/></svg></button>
   </div>
 </header>

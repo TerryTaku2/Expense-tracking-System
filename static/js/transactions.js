@@ -78,20 +78,20 @@ async function loadTransactions() {
     .map((t) => {
       const color = colorForCategory(t.category);
       const receiptLink = t.receipt_filename
-        ? ` <a class="receipt-link" href="/receipts/${encodeURIComponent(t.receipt_filename)}" target="_blank" rel="noopener" title="View receipt">📎</a>`
+        ? ` <a class="receipt-link" href="/receipts/${encodeURIComponent(t.receipt_filename)}" target="_blank" rel="noopener" title="View receipt"><svg class="icon"><use href="#icon-attach"/></svg></a>`
         : "";
       return `
         <tr data-id="${t.id}">
           <td>${formatDate(t.date)}</td>
           <td><span class="category-pill" style="background:${color}22; color:${color};">
-            <span class="category-dot" style="background:${color};"></span>${escapeHtml(t.category)}
+            ${categoryDot(t.category, "small")}${escapeHtml(t.category)}
           </span></td>
           <td>${escapeHtml(t.description)}${receiptLink}</td>
           <td class="txn-amount-col">-${formatMoney(t.amount)}</td>
           <td>
             <div class="row-actions" style="justify-content:flex-end;">
-              <button class="edit-btn" data-id="${t.id}" title="Edit">✎</button>
-              <button class="delete-btn" data-id="${t.id}" title="Delete">✕</button>
+              <button class="edit-btn" data-id="${t.id}" title="Edit"><svg class="icon"><use href="#icon-edit"/></svg></button>
+              <button class="delete-btn" data-id="${t.id}" title="Delete"><svg class="icon"><use href="#icon-delete"/></svg></button>
             </div>
           </td>
         </tr>
