@@ -8,20 +8,9 @@ const errorBanner = document.getElementById("error-banner");
 
 let summaryPeriod = "week";
 
-function formatMoney(value) {
-  return `$${Number(value).toFixed(2)}`;
-}
-
 function showError(message) {
   errorBanner.textContent = message;
   errorBanner.classList.add("visible");
-}
-
-async function apiCall(url) {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Something went wrong");
-  return data;
 }
 
 async function loadSummary() {

@@ -1,9 +1,6 @@
 const historyList = document.getElementById("history-list");
 const historyEmpty = document.getElementById("history-empty");
-
-function formatMoney(value) {
-  return `$${Number(value).toFixed(2)}`;
-}
+const errorBanner = document.getElementById("error-banner");
 
 function formatDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -15,14 +12,26 @@ function formatDate(iso) {
   });
 }
 
+function showError(message) {
+  errorBanner.textContent = message;
+  errorBanner.classList.add("visible");
+}
+
 async function loadHistory() {
-  const res = await fetch("/api/history");
-  const days = await res.json();
+  let days;
+  try {
+    days = await apiCall("/api/history");
+  } catch (err) {
+    showError(err.message);
+    return;
+  }
 
   if (!days.length) {
     historyEmpty.style.display = "block";
+    historyList.innerHTML = "";
     return;
   }
+  historyEmpty.style.display = "none";
 
   historyList.innerHTML = days
     .map((day) => {

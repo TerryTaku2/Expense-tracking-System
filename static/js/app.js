@@ -70,10 +70,6 @@ function todayISO() {
   return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 10);
 }
 
-function formatMoney(value) {
-  return `$${Number(value).toFixed(2)}`;
-}
-
 function formatDateHeading(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
@@ -89,15 +85,6 @@ function showError(message) {
 
 function clearError() {
   errorBanner.classList.remove("visible");
-}
-
-async function apiCall(url, options) {
-  const res = await fetch(url, options);
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || "Something went wrong");
-  }
-  return data;
 }
 
 async function loadCategories() {
@@ -322,12 +309,6 @@ function renderActivity(expenses, income) {
       `;
     })
     .join("");
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function currentDate() {

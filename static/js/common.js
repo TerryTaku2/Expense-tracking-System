@@ -55,6 +55,33 @@ function categoryDot(category, sizeClass) {
   return `<span class="category-dot ${sizeClass || ""}" style="background:${color}"><svg class="icon"><use href="#${icon}"/></svg></span>`;
 }
 
+// Shared fetch wrapper for every page that requires login. A 401 here
+// means the session expired (or was never valid) partway through using
+// the page, so send the user to log back in instead of leaving them
+// looking at a stuck "authentication required" error with no way forward.
+async function apiCall(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+    return new Promise(() => {}); // navigating away; nothing should act on this
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || "Something went wrong");
+  }
+  return data;
+}
+
+function formatMoney(value) {
+  return `$${Number(value).toFixed(2)}`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 const THEME_KEY = "expense-tracker-theme";
 const STREAK_KEY = "expense-tracker-last-streak";
 

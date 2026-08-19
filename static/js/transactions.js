@@ -24,19 +24,9 @@ const restoreFileInput = document.getElementById("restore-file-input");
 let currentTransactions = [];
 let filterDebounce = null;
 
-function formatMoney(value) {
-  return `$${Number(value).toFixed(2)}`;
-}
-
 function formatDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
 
 function showError(message) {
@@ -44,10 +34,17 @@ function showError(message) {
   errorBanner.classList.add("visible");
 }
 
+function clearError() {
+  errorBanner.classList.remove("visible");
+}
+
 async function loadCategoriesForFilter() {
-  const res = await fetch("/api/categories");
-  const categories = await res.json();
-  document.getElementById("category-suggestions").innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  try {
+    const categories = await apiCall("/api/categories");
+    document.getElementById("category-suggestions").innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  } catch (err) {
+    showError(err.message);
+  }
 }
 
 function buildQuery() {
@@ -62,9 +59,15 @@ function buildQuery() {
 }
 
 async function loadTransactions() {
-  const query = buildQuery();
-  const res = await fetch(`/api/transactions${query ? `?${query}` : ""}`);
-  const transactions = await res.json();
+  let transactions;
+  try {
+    const query = buildQuery();
+    transactions = await apiCall(`/api/transactions${query ? `?${query}` : ""}`);
+    clearError();
+  } catch (err) {
+    showError(err.message);
+    return;
+  }
   currentTransactions = transactions;
 
   if (!transactions.length) {
@@ -139,7 +142,7 @@ editModalBackdrop.addEventListener("click", (e) => {
 editForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    const res = await fetch(`/api/expenses/${editExpenseId.value}`, {
+    await apiCall(`/api/expenses/${editExpenseId.value}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -148,10 +151,6 @@ editForm.addEventListener("submit", async (e) => {
         category: editCategory.value,
       }),
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Could not save changes");
-    }
     closeEditModal();
     await loadTransactions();
     showToast("Expense updated");
@@ -171,18 +170,13 @@ txnBody.addEventListener("click", async (e) => {
   if (!deleteBtn) return;
   const id = deleteBtn.dataset.id;
   try {
-    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Could not delete transaction");
-    }
+    await apiCall(`/api/expenses/${id}`, { method: "DELETE" });
     await loadTransactions();
     showToast("Expense deleted", {
       actionLabel: "Undo",
       onAction: async () => {
         try {
-          const restoreRes = await fetch(`/api/expenses/${id}/restore`, { method: "POST" });
-          if (!restoreRes.ok) throw new Error("Could not restore");
+          await apiCall(`/api/expenses/${id}/restore`, { method: "POST" });
           await loadTransactions();
           showToast("Restored");
         } catch (err) {
@@ -211,9 +205,7 @@ restoreFileInput.addEventListener("change", async () => {
   const formData = new FormData();
   formData.append("backup", file);
   try {
-    const res = await fetch("/api/restore", { method: "POST", body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Restore failed");
+    await apiCall("/api/restore", { method: "POST", body: formData });
     showToast("Data restored ✅", { type: "success" });
     await loadTransactions();
   } catch (err) {

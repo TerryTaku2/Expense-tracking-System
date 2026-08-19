@@ -1,10 +1,10 @@
-const CACHE_NAME = "expense-tracker-v2";
+const CACHE_NAME = "expense-tracker-v3";
+// Only truly static, account-agnostic assets. Page navigations are
+// deliberately excluded: the topbar is server-rendered with the logged-in
+// user's email/business name baked into the HTML, so caching a page and
+// falling back to it offline could show one account's identity to whoever
+// is using the browser next (e.g. on a shared device after a logout).
 const APP_SHELL = [
-  "/",
-  "/history",
-  "/transactions",
-  "/budgets",
-  "/insights",
   "/static/css/style.css",
   "/static/js/common.js",
   "/static/js/app.js",
@@ -32,10 +32,15 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Never cache API calls — expense data must always be fresh, never served stale.
+// Never cache API calls (data must always be fresh) or page navigations
+// (the HTML carries the current account's identity) — only the static
+// asset shell below.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) {
+  if (event.request.method !== "GET" || event.request.mode === "navigate" || url.pathname.startsWith("/api/")) {
+    return;
+  }
+  if (!url.pathname.startsWith("/static/")) {
     return;
   }
 
