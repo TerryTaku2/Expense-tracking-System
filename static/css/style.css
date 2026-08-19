@@ -160,6 +160,28 @@ nav.tabs a.active {
   box-shadow: var(--shadow);
 }
 
+.install-btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: white;
+  padding: 8px 14px;
+  font-size: 0.83rem;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(79, 70, 229, 0.25);
+  white-space: nowrap;
+}
+
+.install-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(79, 70, 229, 0.32);
+}
+
+@media (max-width: 640px) {
+  .install-btn {
+    padding: 8px 10px;
+    font-size: 0.78rem;
+  }
+}
+
 .theme-toggle {
   width: 38px;
   height: 38px;

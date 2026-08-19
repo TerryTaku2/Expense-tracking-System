@@ -150,6 +150,51 @@ function registerServiceWorker() {
   }
 }
 
+let deferredInstallPrompt = null;
+
+// Chrome/Edge/Android support a native "install this app" flow triggered
+// from a page button. iOS Safari has no such API — it only allows install
+// via the Share sheet, so we surface a hint there instead of a real button.
+function initInstallPrompt() {
+  const btn = document.getElementById("install-btn");
+  if (!btn) return;
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  if (isStandalone) return;
+
+  if (isIOS) {
+    btn.textContent = "📲 Add to Home Screen";
+    btn.style.display = "inline-flex";
+    btn.addEventListener("click", () => {
+      showToast('Tap the Share icon, then "Add to Home Screen"', { type: "success" });
+    });
+    return;
+  }
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    btn.style.display = "inline-flex";
+  });
+
+  btn.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    btn.style.display = "none";
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    if (outcome === "accepted") {
+      showToast("Installed! 🎉", { type: "success" });
+    }
+  });
+
+  window.addEventListener("appinstalled", () => {
+    btn.style.display = "none";
+  });
+}
+
 initTheme();
 loadStreak();
 registerServiceWorker();
+initInstallPrompt();
