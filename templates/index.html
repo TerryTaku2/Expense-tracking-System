@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Expense Tracker</title>
+  {% include "_pwa_head.html" %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  {% include "_topbar.html" %}
+
+  <main>
+    <div class="date-row">
+      <h1 id="date-heading" class="page-heading">Today</h1>
+      <input type="date" id="date-picker" />
+    </div>
+
+    <div id="error-banner" class="error-banner"></div>
+
+    <div id="setup-view" class="card setup-card fade-in" style="display:none;">
+      <div class="setup-icon">💰</div>
+      <h2>Set your starting balance</h2>
+      <p class="balance-sub">How much money are you starting this day with?</p>
+
+      <div class="setup-options" id="setup-options">
+        <button type="button" class="setup-option active" data-mode="new">Start fresh</button>
+        <button type="button" class="setup-option" data-mode="carry" id="carry-option" style="display:none;">Carry over</button>
+        <button type="button" class="setup-option" data-mode="add" id="add-option" style="display:none;">Top up</button>
+      </div>
+
+      <form id="setup-form">
+        <div class="field" id="new-balance-field">
+          <label for="setup-amount">Starting balance</label>
+          <input type="number" id="setup-amount" step="0.01" min="0" placeholder="0.00" />
+        </div>
+
+        <div class="carry-preview" id="carry-preview" style="display:none;">
+          <div class="carry-amount" id="carry-amount">$0.00</div>
+          <div class="carry-sub">Carried over from <span id="carry-date"></span></div>
+        </div>
+
+        <div class="field" id="add-amount-field" style="display:none;">
+          <label for="add-amount">Amount to add</label>
+          <input type="number" id="add-amount" step="0.01" placeholder="0.00" />
+          <div class="carry-sub" id="add-preview"></div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <button type="submit" class="primary" style="width:100%;" id="setup-submit-btn">Start the day</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="main-view" style="display:none;">
+      <div class="grid-top">
+        <div class="card fade-in balance-card">
+          <div class="balance-ring-wrap">
+            <svg class="balance-ring" viewBox="0 0 120 120">
+              <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+              <circle class="ring-progress" id="ring-progress" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="balance-ring-center">
+              <div class="balance-label">Remaining</div>
+              <div class="balance-amount neutral" id="balance-amount">$0.00</div>
+            </div>
+          </div>
+          <div class="balance-sub" id="balance-sub" style="text-align:center;"></div>
+
+          <div class="stat-row">
+            <div class="stat">
+              <div class="stat-value" id="stat-starting">$0.00</div>
+              <div class="stat-label">Starting balance</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="stat-spent">$0.00</div>
+              <div class="stat-label">Spent today</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value" id="stat-count">0</div>
+              <div class="stat-label">Transactions</div>
+            </div>
+          </div>
+          <button type="button" class="secondary" id="edit-balance-btn" style="margin-top:16px; width:100%;">
+            Edit starting balance
+          </button>
+        </div>
+
+        <div class="card fade-in">
+          <div class="section-title">Add an expense</div>
+          <form id="expense-form" class="inline-form">
+            <div class="field">
+              <label for="expense-desc">Description <span class="optional-tag">(optional)</span></label>
+              <input type="text" id="expense-desc" placeholder="e.g. Lunch" maxlength="120" />
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="expense-amount">Amount</label>
+                <input type="number" id="expense-amount" step="0.01" min="0.01" placeholder="0.00" required />
+              </div>
+              <div class="field">
+                <label for="expense-category">Category</label>
+                <input type="text" id="expense-category" list="category-suggestions" placeholder="e.g. Food" maxlength="40" autocomplete="off" />
+                <datalist id="category-suggestions"></datalist>
+              </div>
+            </div>
+            <button type="submit" class="primary">Add expense</button>
+          </form>
+
+          <div id="breakdown-wrap" style="display:none;">
+            <div class="section-title" style="margin-top:22px;">Where it went today</div>
+            <div class="breakdown-bar" id="breakdown-bar"></div>
+            <div class="breakdown-legend" id="breakdown-legend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card fade-in">
+        <div class="section-title">Today's expenses</div>
+        <ul class="expense-list" id="expense-list"></ul>
+        <div class="empty-state" id="empty-state" style="display:none;">
+          <div class="empty-icon">🧾</div>
+          <div>No expenses logged yet — add your first one above.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions - Expense Tracker</title>
+  {% include "_pwa_head.html" %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  {% include "_topbar.html" %}
+
+  <main>
+    <div class="date-row">
+      <h1 class="page-heading">All transactions</h1>
+    </div>
+
+    <div id="error-banner" class="error-banner"></div>
+
+    <div class="card fade-in" style="padding:0;">
+      <div class="table-wrap">
+        <table class="txn-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th class="txn-amount-col">Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="txn-body"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="txn-empty" style="display:none;">
+        <div class="empty-icon">🧾</div>
+        <div>No transactions recorded yet. Head to <a href="/">Today</a> to add one.</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/transactions.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark">💸</span>
+    <span>Expense Tracker</span>
+  </a>
+  <div class="topbar-right">
+    <div class="streak-badge" id="streak-badge" title="Consecutive days you've stayed within budget">
+      <span class="streak-flame" id="streak-flame">🔥</span>
+      <span id="streak-count">0</span>
+    </div>
+    <nav class="tabs">
+      <a href="/" class="{{ 'active' if active_page == 'today' else '' }}">Today</a>
+      <a href="/history" class="{{ 'active' if active_page == 'history' else '' }}">History</a>
+      <a href="/transactions" class="{{ 'active' if active_page == 'transactions' else '' }}">Transactions</a>
+    </nav>
+    <button type="button" class="theme-toggle" id="theme-toggle" title="Toggle light / dark theme" aria-label="Toggle theme">🌙</button>
+  </div>
+</header>
