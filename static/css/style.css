@@ -48,8 +48,21 @@
   box-sizing: border-box;
 }
 
+/* Safety net: if any single element ever ends up a little wider than the
+   viewport (a native date-picker control, a long unbreakable word, a
+   fixed-width chart before it's had a chance to measure its container,
+   etc.), this stops it from dragging the whole page into a horizontally
+   scrollable state — which is what actually clips content off the left
+   edge on phones, not just that one element looking slightly too wide. */
+html {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   margin: 0;
+  overflow-x: hidden;
+  width: 100%;
   background: var(--bg-accent), var(--bg);
   background-attachment: fixed;
   color: var(--text);
@@ -362,6 +375,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -375,9 +389,16 @@ main {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 0.95rem;
+  font-size: max(0.95rem, 16px);
   color: var(--text);
   background: var(--surface-muted);
+  max-width: 100%;
+}
+
+@media (max-width: 400px) {
+  .date-row input[type="date"] {
+    width: 100%;
+  }
 }
 
 .balance-card {
