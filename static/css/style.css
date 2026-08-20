@@ -62,6 +62,9 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 32px;
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
+  padding-top: max(16px, env(safe-area-inset-top));
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -174,6 +177,9 @@ nav.tabs a {
   .topbar {
     flex-wrap: wrap;
     padding: 12px 16px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-top: max(12px, env(safe-area-inset-top));
     gap: 10px;
   }
 
@@ -273,6 +279,34 @@ main {
   max-width: 900px;
   margin: 0 auto;
   padding: 32px 24px 64px;
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
+}
+
+@media (max-width: 480px) {
+  main {
+    padding-top: 20px;
+    padding-bottom: 40px;
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .balance-ring-wrap {
+    width: 150px;
+    height: 150px;
+  }
+
+  .stat-row {
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 10px 6px;
+  }
 }
 
 .card {
@@ -445,6 +479,12 @@ form.inline-form {
   gap: 12px;
 }
 
+@media (max-width: 420px) {
+  .field-row {
+    flex-direction: column;
+  }
+}
+
 .field {
   flex: 1;
   display: flex;
@@ -468,7 +508,8 @@ input, select {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
-  font-size: 0.95rem;
+  /* 16px minimum stops iOS Safari auto-zooming the page in on focus. */
+  font-size: max(0.95rem, 16px);
   color: var(--text);
   background: var(--surface);
   font-family: inherit;
@@ -562,7 +603,8 @@ button:disabled {
 }
 
 .setup-option {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -573,6 +615,17 @@ button:disabled {
   font-size: 0.82rem;
   border-radius: 8px;
   box-shadow: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .setup-options {
+    flex-wrap: wrap;
+  }
+
+  .setup-option {
+    flex: 1 1 40%;
+  }
 }
 
 .setup-option .icon {
@@ -733,7 +786,7 @@ svg.icon {
 
 .row-actions {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -741,6 +794,8 @@ svg.icon {
 .delete-btn {
   background: transparent;
   color: var(--text-muted);
+  min-width: 36px;
+  min-height: 36px;
   padding: 6px;
   border-radius: 6px;
   line-height: 1;
@@ -997,6 +1052,13 @@ svg.icon {
   white-space: nowrap;
 }
 
+@media (max-width: 640px) {
+  .txn-table th,
+  .txn-table td {
+    padding: 10px 12px;
+  }
+}
+
 .txn-table tbody tr {
   transition: background-color 0.15s ease;
 }
@@ -1192,7 +1254,7 @@ svg.icon {
 /* Toasts */
 .toast-container {
   position: fixed;
-  bottom: 24px;
+  bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1200,12 +1262,14 @@ svg.icon {
   gap: 8px;
   z-index: 1000;
   align-items: center;
+  max-width: calc(100vw - 32px);
 }
 
 .toast {
   display: flex;
   align-items: center;
   gap: 12px;
+  max-width: 100%;
   background: var(--text);
   color: var(--bg);
   padding: 11px 12px 11px 20px;

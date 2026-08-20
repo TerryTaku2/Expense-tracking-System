@@ -48,6 +48,8 @@ summaryPeriodOptions.addEventListener("click", (e) => {
   loadSummary();
 });
 
+let lastTrends = [];
+
 function buildChart(trends) {
   const wrap = document.getElementById("trend-chart-wrap");
   const emptyEl = document.getElementById("trend-empty");
@@ -59,7 +61,12 @@ function buildChart(trends) {
   }
   emptyEl.style.display = "none";
 
-  const width = Math.max(560, trends.length * 40);
+  // Fit the chart to the space actually available (phone, tablet, desktop)
+  // and only grow past that — forcing horizontal scroll — once there are
+  // enough data points that bars would otherwise become illegibly thin.
+  const minBarSlot = 26;
+  const containerWidth = wrap.clientWidth || 320;
+  const width = Math.max(containerWidth, trends.length * minBarSlot);
   const height = 220;
   const padding = { top: 12, right: 12, bottom: 28, left: 12 };
   const chartHeight = height - padding.top - padding.bottom;
@@ -90,12 +97,27 @@ function buildChart(trends) {
     })
     .join("");
 
-  wrap.innerHTML = `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${bars}${labels}</svg>`;
+  // Real pixel width/height (not 100%) so a chart that fits the container
+  // renders at its natural size, while one with enough data points to
+  // exceed the container genuinely overflows it — scrolling horizontally
+  // with legible, fixed-width bars instead of being squashed to fit.
+  wrap.innerHTML = `<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${bars}${labels}</svg>`;
+}
+
+function rerenderChartOnResize() {
+  let resizeDebounce = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeDebounce);
+    resizeDebounce = setTimeout(() => {
+      if (lastTrends.length) buildChart(lastTrends);
+    }, 200);
+  });
 }
 
 async function loadTrends() {
   try {
-    buildChart(await apiCall("/api/trends?days=30"));
+    lastTrends = await apiCall("/api/trends?days=30");
+    buildChart(lastTrends);
   } catch (err) {
     showError(err.message);
   }
@@ -103,3 +125,4 @@ async function loadTrends() {
 
 loadSummary();
 loadTrends();
+rerenderChartOnResize();
