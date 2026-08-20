@@ -48,6 +48,35 @@ def _table_exists(conn, table):
     return row is not None
 
 
+def _foreign_key_targets(conn, table):
+    return {row["table"] for row in conn.execute(f"PRAGMA foreign_key_list({table})").fetchall()}
+
+
+def _fix_stale_day_foreign_key(conn, table, create_sql):
+    """SQLite's ALTER TABLE RENAME (used above to move the old single-user
+    `days` table aside during the accounts migration) silently rewrites
+    foreign keys in OTHER tables that pointed at the renamed table. So
+    `expenses`/`income` -- created back when `days` was still the
+    single-user table -- ended up with day_id REFERENCES
+    days_pre_accounts(id) instead of the live `days` table. That's
+    invisible until foreign key enforcement is on (PRAGMA foreign_keys),
+    at which point every insert fails with a constraint violation.
+    Recreates the table with a correct foreign key if that's happened,
+    copying all rows across unchanged -- their day_id values were always
+    valid, only the declared constraint's target table name was wrong."""
+    if not _table_exists(conn, table):
+        conn.execute(create_sql)
+        return
+    if "days" in _foreign_key_targets(conn, table):
+        return
+    tmp = f"{table}_stale_fk"
+    conn.execute(f"ALTER TABLE {table} RENAME TO {tmp}")
+    conn.execute(create_sql)
+    cols = ", ".join(r["name"] for r in conn.execute(f"PRAGMA table_info({tmp})").fetchall())
+    conn.execute(f"INSERT INTO {table} ({cols}) SELECT {cols} FROM {tmp}")
+    conn.execute(f"DROP TABLE {tmp}")
+
+
 def _migrate_legacy_single_user_table(conn, table, create_sql):
     """Older deploys of this app had no user concept, so `days`/`budgets`/
     `recurring` may exist without a user_id column and with constraints that
@@ -123,31 +152,35 @@ def init_db():
         """,
     )
 
-    conn.execute(
+    _fix_stale_day_foreign_key(
+        conn, "expenses",
         """
-        CREATE TABLE IF NOT EXISTS expenses (
+        CREATE TABLE expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             day_id INTEGER NOT NULL REFERENCES days(id),
             description TEXT NOT NULL,
             category TEXT NOT NULL,
             amount REAL NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+            created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+            receipt_filename TEXT,
+            deleted_at TEXT
         )
-        """
+        """,
     )
     _ensure_column(conn, "expenses", "receipt_filename", "receipt_filename TEXT")
     _ensure_column(conn, "expenses", "deleted_at", "deleted_at TEXT")
 
-    conn.execute(
+    _fix_stale_day_foreign_key(
+        conn, "income",
         """
-        CREATE TABLE IF NOT EXISTS income (
+        CREATE TABLE income (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             day_id INTEGER NOT NULL REFERENCES days(id),
             description TEXT NOT NULL,
             amount REAL NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
-        """
+        """,
     )
 
     _quarantine_orphaned_rows(conn, "expenses")
