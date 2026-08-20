@@ -88,9 +88,17 @@ function clearError() {
 }
 
 async function loadCategories() {
-  const categories = await apiCall("/api/categories");
-  const datalist = document.getElementById("category-suggestions");
-  datalist.innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  // Category suggestions are a nice-to-have autocomplete, not core
+  // functionality — a hiccup fetching them should never take down the
+  // rest of the page (which is what happened when this threw unguarded
+  // inside the startup sequence below: loadDay() never got a chance to run).
+  try {
+    const categories = await apiCall("/api/categories");
+    const datalist = document.getElementById("category-suggestions");
+    datalist.innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  } catch (err) {
+    console.error("Failed to load category suggestions:", err);
+  }
 }
 
 async function loadDay(dateStr) {

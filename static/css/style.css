@@ -185,12 +185,25 @@ nav.tabs a {
 
   .topbar-right {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 10px;
   }
 
+  /* flex-basis: 100% forces this onto its own line within the wrapping
+     row above — `order` alone (the previous approach) doesn't wrap,
+     it just reorders items within the same line, which squeezed the
+     tabs into whatever space was left after the icon buttons. */
   nav.tabs {
+    order: 2;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .streak-badge,
+  .install-btn,
+  .theme-toggle {
     order: 1;
-    flex: 1;
   }
 
   nav.tabs a {

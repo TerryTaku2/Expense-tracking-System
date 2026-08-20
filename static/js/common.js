@@ -65,6 +65,20 @@ async function apiCall(url, options) {
     window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     return new Promise(() => {}); // navigating away; nothing should act on this
   }
+
+  // A non-JSON body (an HTML error page from a proxy timeout, a cold
+  // start, a 502, etc.) would otherwise surface as a raw, confusing
+  // "Unexpected token '<' ... is not valid JSON" straight from the
+  // JSON parser. Catch that and turn it into something a user can act on.
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      res.ok
+        ? "Unexpected response from the server. Please try again."
+        : `Server error (${res.status}). Please try again in a moment.`
+    );
+  }
+
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || "Something went wrong");

@@ -28,8 +28,14 @@ function showError(message) {
 }
 
 async function loadCategoriesForSuggestions() {
-  const categories = await apiCall("/api/categories");
-  document.getElementById("category-suggestions").innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  // Category suggestions are a nice-to-have autocomplete — a fetch hiccup
+  // here shouldn't block the actual budgets/recurring data from loading.
+  try {
+    const categories = await apiCall("/api/categories");
+    document.getElementById("category-suggestions").innerHTML = categories.map((c) => `<option value="${c}"></option>`).join("");
+  } catch (err) {
+    console.error("Failed to load category suggestions:", err);
+  }
 }
 
 function renderBudgets(budgets) {
